@@ -1,0 +1,4 @@
+/.venv
+*.gguf
+pyrightconfig.json
+/chroma_data
