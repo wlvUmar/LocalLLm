@@ -1,40 +1,78 @@
-"""
-Main FastAPI application module
-"""
-
+import os
 import logging
+import asyncio
 from fastapi import FastAPI
+from contextlib import asynccontextmanager
+from fastapi.staticfiles import StaticFiles
 
+from .db import init_db
 from .routes import router
-from .events import setup_events
-from .llm_manager import LLMManager
+from config import settings
+from .rag_system import RAGSystem, LLMManager
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s"
-)
 logger = logging.getLogger(__name__)
 
-# Initialize FastAPI app
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Starting FastAPI LLM Chat Application...")
+    
+    lock = asyncio.Lock()    
+    llm_manager = LLMManager()
+    rag_system = RAGSystem(lock)
+    
+    await rag_system.initialize()
+
+    models = llm_manager.get_available_models()
+    if models:
+        llm_manager.load_model(models[0])
+
+
+    app.state.llm_manager = llm_manager
+    app.state.rag_system = rag_system
+
+    os.makedirs("templates", exist_ok=True)
+    os.makedirs("static", exist_ok=True)
+    os.makedirs("models", exist_ok=True)
+    os.makedirs("chroma_data", exist_ok=True)
+    os.makedirs("logs", exist_ok=True)
+
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+
+    try:
+        await init_db()
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}")
+        logger.error("Please ensure PostgreSQL is running and accessible")
+        yield
+        return
+
+    models = llm_manager.get_available_models()
+    if not models:
+        logger.warning("No models found in models directory")
+        logger.warning("Please add model files (.gguf, .bin, .ggml) to the models/ directory")
+        yield
+        return
+
+    default_model = models[0]
+    logger.info(f"Starting with default model: {default_model}")
+
+    yield  
+
+ 
+    logger.info("Application shutdown completed")
+
+
+
+
 app = FastAPI(
-    title="Local LLM Chat Interface",
-    description="A web interface for chatting with local LLM models via llama.cpp",
-    version="1.0.0"
+    title=settings.app_name,
+    description=settings.app_disc,
+    version=settings.app_version,
+    lifespan=lifespan
 )
 
-llm_manager = LLMManager()
-setup_events(app, llm_manager)
 
-from .routes import router
 app.include_router(router)
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(
-        "app.main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info"
-    ) 

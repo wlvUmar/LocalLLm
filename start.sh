@@ -1,7 +1,3 @@
-#!/bin/bash
-
-# FastAPI LLM Chat Application Startup Script
-# This script sets up and starts the FastAPI application
 
 set -e  # Exit on any error
 
@@ -12,7 +8,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m' 
 
 # Function to print colored output
 print_status() {
@@ -55,7 +51,7 @@ fi
 
 # Activate virtual environment
 print_status "Activating virtual environment..."
-source venv/bin/activate
+source .venv/bin/activate
 
 # Install/upgrade requirements
 print_status "Installing/upgrading Python dependencies..."
@@ -100,5 +96,4 @@ print_status ""
 print_status "Press Ctrl+C to stop the application."
 print_status ""
 
-# Start with auto-reload for development
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload --log-level info
